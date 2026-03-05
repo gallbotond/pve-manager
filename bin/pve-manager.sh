@@ -1,23 +1,71 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
 
 #==============================================================
-# Dark mode dialog configuration
+# Resolve paths
 #==============================================================
-# Resolve absolute path even if script is symlinked
+
+# Absolute path of script
 SCRIPT_PATH="$(readlink -f "$0")"
-# SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
-if [[ -f "$SCRIPT_DIR/.dialogrc" ]]; then
-    export DIALOGRC="$SCRIPT_DIR/.dialogrc"
+# Directory of the script (bin/)
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+
+# Project root
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+CONFIG_DIR="$PROJECT_ROOT/config"
+THEME_DIR="$PROJECT_ROOT/theme"
+
+VERSION_FILE="$PROJECT_ROOT/VERSION"
+
+#==============================================================
+# Load version
+#==============================================================
+
+if [[ -f "$VERSION_FILE" ]]; then
+    VERSION="$(cat "$VERSION_FILE")"
+else
+    VERSION="dev"
 fi
 
-echo "SCRIPT DIR: $(dirname "$0")"
+#==============================================================
+# CLI arguments
+#==============================================================
+
+case "${1:-}" in
+    --help|-h)
+        echo "PVE Manager $VERSION"
+        echo ""
+        echo "Usage:"
+        echo "  pve-manager.sh"
+        echo ""
+        echo "Options:"
+        echo "  --help       Show this help"
+        echo "  --version    Show version"
+        exit 0
+        ;;
+    --version|-v)
+        echo "pve-manager $VERSION"
+        exit 0
+        ;;
+esac
+
+#==============================================================
+# Dialog theme
+#==============================================================
+
+DIALOG_THEME="$THEME_DIR/.dialogrc"
+
+if [[ -f "$DIALOG_THEME" ]]; then
+    export DIALOGRC="$DIALOG_THEME"
+fi
 
 #==============================================================
 # Dependency checks
 #==============================================================
+
 if ! command -v dialog >/dev/null 2>&1; then
     echo "❌ Error: 'dialog' is not installed."
     echo ""
@@ -31,23 +79,36 @@ fi
 
 if ! command -v jq >/dev/null 2>&1; then
     echo "❌ Error: 'jq' is required but not installed."
-    echo "Install it with: sudo apt install jq   OR   nix-shell -p jq"
+    echo "Install it with:"
+    echo "  sudo apt install jq"
+    echo "  OR"
+    echo "  nix-shell -p jq"
     exit 1
 fi
 
-
 #==============================================================
-# Load Proxmox token credentials
+# Load Proxmox credentials
 #==============================================================
-source "$SCRIPT_DIR/proxmox.env"
 
-if [[ -z "$API_URL" || -z "$TOKEN_ID" || -z "$TOKEN_SECRET" ]]; then
-  echo "❌ Missing required environment variables in proxmox.env"
+CONFIG_FILE="$CONFIG_DIR/proxmox.env"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "❌ Missing configuration file:"
+    echo "   $CONFIG_FILE"
+    echo ""
+    echo "Create it from the example:"
+    echo "   cp $CONFIG_DIR/proxmox.env.example $CONFIG_FILE"
+    exit 1
+fi
+
+source "$CONFIG_FILE"
+
+if [[ -z "${API_URL:-}" || -z "${TOKEN_ID:-}" || -z "${TOKEN_SECRET:-}" ]]; then
+  echo "❌ Missing required variables in proxmox.env"
   exit 1
 fi
 
 AUTH_HEADER="Authorization: PVEAPIToken=$TOKEN_ID=$TOKEN_SECRET"
-
 
 #==============================================================
 # Fetch VM list
