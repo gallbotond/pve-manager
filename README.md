@@ -18,11 +18,15 @@ Terminal UI for bulk managing Proxmox VMs.
 
 ### NixOS
 
+```bash
 nix-shell -p dialog jq
+```
 
 ### Debian / Ubuntu
 
+```bash
 sudo apt install dialog jq
+```
 
 ### Install script
 
@@ -48,7 +52,9 @@ TOKEN_SECRET=
 
 ## Usage
 
+```bash
 pve-manager
+```
 
 ## Operations Supported
 
