@@ -12,7 +12,7 @@ Terminal UI for bulk managing Proxmox VMs.
 
 ## Screenshot
 
-![alt text]({49DF94A7-AD58-4340-8C00-ECEA6803FC63}.png)
+![PVE Manager Screenshot](./screenshot/{49DF94A7-AD58-4340-8C00-ECEA6803FC63}.png)
 
 ## Installation
 
