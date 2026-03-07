@@ -9,9 +9,7 @@ lint-ci:
 test:
 	bash -n bin/main.sh
 	bash -n lib/*.sh
-
-test-cli:
-	bash tests/run_tests.sh
+	bats tests
 
 fmt:
 	shfmt -d bin lib
