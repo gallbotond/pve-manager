@@ -19,6 +19,11 @@ api_call() {
 
 fetch_vms() {
 
+	if [[ -n "${PVE_MANAGER_TEST_DATA:-}" ]]; then
+		VM_DATA="$(cat "$PVE_MANAGER_TEST_DATA")"
+		return
+	fi
+
 	log "Fetching VM list..."
 
 	VM_DATA=$(curl -s -k \

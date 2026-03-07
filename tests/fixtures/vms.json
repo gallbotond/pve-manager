@@ -1,0 +1,18 @@
+{
+  "data": [
+    {
+      "vmid": 101,
+      "name": "web01",
+      "status": "running",
+      "node": "node1",
+      "tags": "prod"
+    },
+    {
+      "vmid": 102,
+      "name": "db01",
+      "status": "stopped",
+      "node": "node2",
+      "tags": "staging"
+    }
+  ]
+}

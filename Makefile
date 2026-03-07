@@ -10,6 +10,9 @@ test:
 	bash -n bin/main.sh
 	bash -n lib/*.sh
 
+test-cli:
+	bash tests/run_tests.sh
+
 fmt:
 	shfmt -d bin lib
 
