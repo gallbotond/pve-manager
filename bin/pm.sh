@@ -1,33 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_PATH="$(readlink -f "$0")"
-SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-LIB_DIR="$PROJECT_ROOT/lib"
+COMMANDS_DIR="$PROJECT_ROOT/commands"
 
-# global paths
-export THEME_DIR="$PROJECT_ROOT/theme"
-export CONFIG_DIR="$PROJECT_ROOT/config"
+COMMAND="${1:-help}"
 
-# global flags
-export DRY_RUN=false
-export FORCE=false
-export VERBOSE=false
+shift || true
 
-source "$LIB_DIR/log.sh"
-source "$LIB_DIR/config.sh"
-source "$LIB_DIR/api.sh"
-source "$LIB_DIR/vm.sh"
-source "$LIB_DIR/ui.sh"
-source "$LIB_DIR/cli.sh"
+COMMAND_PATH="$COMMANDS_DIR/$COMMAND"
 
-main() {
-	parse_args "$@"
-	load_config
-	fetch_vms
-	run_command
-}
+if [[ ! -x "$COMMAND_PATH" ]]; then
+	echo "Unknown command: $COMMAND"
+	exit 1
+fi
 
-main "$@"
+exec "$COMMAND_PATH" "$@"
