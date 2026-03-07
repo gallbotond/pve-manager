@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# record curl calls for tests
+echo "$@" >>"$BATS_TEST_TMPDIR/curl_calls"
+
+# simulate API responses
+if [[ "$*" == *"cluster/resources"* ]]; then
+	cat "$PVE_MANAGER_TEST_DATA"
+	exit 0
+fi
+
+# generic success response
+echo '{"data":null}'
