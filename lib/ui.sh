@@ -156,7 +156,7 @@ run_ui() {
 	# VM Selection Menu
 	#==============================================================
 	SELECTED_VMS=$(dialog --colors --clear \
-		--title "Proxmox Bulk VM Manager" \
+		--title " Proxmox Bulk VM Manager " \
 		--checklist "Select VMs to operate on:" \
 		"$DIALOG_HEIGHT" "$DIALOG_WIDTH" "$AVAILABLE_ROWS" \
 		"${MENU_ITEMS[@]}" \

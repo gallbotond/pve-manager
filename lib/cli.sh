@@ -5,66 +5,66 @@ ARGS=()
 
 parse_args() {
 
-    COMMAND="${1:-ui}"
-    shift || true
+	COMMAND="${1:-ui}"
+	shift || true
 
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -n|--dry-run)
-                DRY_RUN=true
-                ;;
-            -v|--verbose)
-                VERBOSE=true
-                ;;
-            -y|--yes)
-                FORCE=true
-                ;;
-            -c|--config)
-                CONFIG_OVERRIDE="$2"
-                shift
-                ;;
-            *)
-                ARGS+=("$1")
-                ;;
-        esac
-        shift
-    done
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+		-n | --dry-run)
+			DRY_RUN=true
+			;;
+		-v | --verbose)
+			VERBOSE=true
+			;;
+		-y | --yes)
+			FORCE=true
+			;;
+		-c | --config)
+			CONFIG_OVERRIDE="$2"
+			shift
+			;;
+		*)
+			ARGS+=("$1")
+			;;
+		esac
+		shift
+	done
 }
 
 run_command() {
 
-    case "$COMMAND" in
+	case "$COMMAND" in
 
-        ui)
-            run_ui
-            ;;
+	ui)
+		run_ui
+		;;
 
-        list)
-            list_vms
-            ;;
+	list)
+		list_vms
+		;;
 
-        shutdown|stop|suspend|delete)
-            vm_action "$COMMAND" "${ARGS[@]}"
-            ;;
+	shutdown | stop | suspend | delete)
+		vm_action "$COMMAND" "${ARGS[@]}"
+		;;
 
-        *)
-            error "Unknown command: $COMMAND"
-            exit 1
-            ;;
+	*)
+		error "Unknown command: $COMMAND"
+		exit 1
+		;;
 
-    esac
+	esac
 }
 
 confirm() {
 
-    if [[ "${FORCE:-false}" == true ]]; then
-        return
-    fi
+	if [[ "${FORCE:-false}" == true ]]; then
+		return
+	fi
 
-    read -rp "$1 [y/N]: " ans
+	read -rp "$1 [y/N]: " ans
 
-    if [[ "$ans" != "y" ]]; then
-        echo "Aborted."
-        exit 1
-    fi
+	if [[ "$ans" != "y" ]]; then
+		echo "Aborted."
+		exit 1
+	fi
 }

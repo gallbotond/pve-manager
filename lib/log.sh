@@ -20,3 +20,9 @@ error() {
 debug() {
 	[[ "$VERBOSE" == true ]] && echo "[DEBUG] $*" | tee -a "$LOG_FILE"
 }
+
+custom_log() {
+	local level="$1"
+	shift
+	echo "[$level] $*" | tee -a "$LOG_FILE"
+}

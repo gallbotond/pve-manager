@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Load common environment
-source "$(dirname "$0")/../lib/command.sh"
+source "$(dirname "$0")/../lib/_command.sh"
 
 # Execute the command
 list_vms
