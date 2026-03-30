@@ -43,7 +43,7 @@ run_command() {
 		list_vms
 		;;
 
-	shutdown | stop | suspend | delete)
+	shutdown | stop | start | restart | suspend | hibernate | delete)
 		vm_action "$COMMAND" "${ARGS[@]}"
 		;;
 

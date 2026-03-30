@@ -58,9 +58,12 @@ pve-manager
 
 ## Operations Supported
 
+- start
 - shutdown
 - stop
+- restart
 - suspend
+- hibernate
 - delete
 
 ## Security

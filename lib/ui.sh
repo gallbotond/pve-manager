@@ -1,23 +1,8 @@
 #!/usr/bin/env bash
 
-run_ui() {
-
-	#==============================================================
-	# Dialog theme
-	#==============================================================
-
-	DIALOG_THEME="$THEME_DIR/.dialogrc"
-
-	if [[ -f "$DIALOG_THEME" ]]; then
-		export DIALOGRC="$DIALOG_THEME"
-	fi
-
-	#==============================================================
-	# Dependency checks
-	#==============================================================
-
+check_dependencies() {
 	if ! command -v dialog >/dev/null 2>&1; then
-		echo "❌ Error: 'dialog' is not installed."
+		echo "Error: 'dialog' is not installed."
 		echo ""
 		echo "Install on NixOS:"
 		echo "  nix-shell -p dialog"
@@ -28,22 +13,20 @@ run_ui() {
 	fi
 
 	if ! command -v jq >/dev/null 2>&1; then
-		echo "❌ Error: 'jq' is required but not installed."
+		echo "Error: 'jq' is required but not installed."
 		echo "Install it with:"
 		echo "  sudo apt install jq"
 		echo "  OR"
 		echo "  nix-shell -p jq"
 		exit 1
 	fi
+}
 
-	#==============================================================
-	# Load Proxmox credentials
-	#==============================================================
-
+load_config() {
 	CONFIG_FILE="$CONFIG_DIR/proxmox.env"
 
 	if [[ ! -f "$CONFIG_FILE" ]]; then
-		echo "❌ Missing configuration file:"
+		echo "Missing configuration file:"
 		echo "   $CONFIG_FILE"
 		echo ""
 		echo "Create it from the example:"
@@ -55,35 +38,21 @@ run_ui() {
 	source "$CONFIG_FILE"
 
 	if [[ -z "${API_URL:-}" || -z "${TOKEN_ID:-}" || -z "${TOKEN_SECRET:-}" ]]; then
-		echo "❌ Missing required variables in proxmox.env"
+		echo "Missing required variables in proxmox.env"
 		exit 1
 	fi
 
 	AUTH_HEADER="Authorization: PVEAPIToken=$TOKEN_ID=$TOKEN_SECRET"
+}
 
-	#==============================================================
-	# Fetch VM list
-	#==============================================================
-	echo "Fetching VM list..."
-	VM_DATA=$(curl -s -k -H "$AUTH_HEADER" "$API_URL/cluster/resources?type=vm")
-
-	if [[ -z "$VM_DATA" ]]; then
-		echo "❌ Error: Could not retrieve VM list."
-		exit 1
-	fi
-
-	#==============================================================
-	# Build dialog checklist with padded aligned columns (with node)
-	#==============================================================
+build_menu_items() {
 	MENU_ITEMS=()
 
-	# MAX_ICON=4 # "[VM]" or "[T]" → constant width
 	MAX_NAME=0
 	MAX_STATUS=0
 	MAX_TAGS=0
 	MAX_NODE=0
 
-	# First pass: determine max column widths
 	while IFS= read -r vmid; do
 		name=$(jq -r ".data[] | select(.vmid==$vmid) | .name // \"(noname)\"" <<<"$VM_DATA")
 		status=$(jq -r ".data[] | select(.vmid==$vmid) | .status" <<<"$VM_DATA")
@@ -96,7 +65,6 @@ run_ui() {
 		((${#node} > MAX_NODE)) && MAX_NODE=${#node}
 	done < <(jq -r '.data | sort_by((.name//"")|ascii_downcase)[] | .vmid' <<<"$VM_DATA")
 
-	# Second pass: construct formatted rows
 	while IFS= read -r vmid; do
 		name=$(jq -r ".data[] | select(.vmid==$vmid) | .name // \"(noname)\"" <<<"$VM_DATA")
 		status=$(jq -r ".data[] | select(.vmid==$vmid) | .status" <<<"$VM_DATA")
@@ -104,38 +72,33 @@ run_ui() {
 		node=$(jq -r ".data[] | select(.vmid==$vmid) | .node" <<<"$VM_DATA")
 		template=$(jq -r ".data[] | select(.vmid==$vmid) | .template" <<<"$VM_DATA")
 
-		# ASCII icon
 		if [[ "$template" == "1" ]]; then
 			icon="[T] "
 		else
 			icon="[VM]"
 		fi
 
-		# Pad text fields
 		printf -v name_fmt "%-${MAX_NAME}s" "$name"
 		printf -v node_fmt "%-${MAX_NODE}s" "$node"
 		printf -v tags_fmt "%-${MAX_TAGS}s" "$tags"
 
-		# Status column (templates override)
 		if [[ "$template" == "1" ]]; then
-			STATUS_FMT="\Z7template\Zn" # gray
+			STATUS_FMT="\Z7template\Zn"
 		else
 			case "$status" in
-			running) STATUS_FMT="\Z2running \Zn" ;; # green
-			stopped) STATUS_FMT="\Z1stopped \Zn" ;; # red
-			*) STATUS_FMT="\Z3${status}\Zn" ;;      # yellow
+			running) STATUS_FMT="\Z2running \Zn" ;;
+			stopped) STATUS_FMT="\Z1stopped \Zn" ;;
+			*) STATUS_FMT="\Z3${status}\Zn" ;;
 			esac
 		fi
 
-		# Compose final row
 		label="${icon} ${name_fmt} | ${node_fmt} | ${STATUS_FMT} |  tags: ${tags_fmt}"
 
 		MENU_ITEMS+=("$vmid" "$label" "off")
 	done < <(jq -r '.data | sort_by((.name//"")|ascii_downcase)[] | .vmid' <<<"$VM_DATA")
+}
 
-	#==============================================================
-	# Dynamic dialog sizing
-	#==============================================================
+get_dialog_size() {
 	TERM_HEIGHT=$(tput lines)
 	TERM_WIDTH=$(tput cols)
 
@@ -145,99 +108,156 @@ run_ui() {
 	((DIALOG_HEIGHT < 15)) && DIALOG_HEIGHT=15
 	((DIALOG_WIDTH < 60)) && DIALOG_WIDTH=60
 
-	# internal scrollbar list height
 	AVAILABLE_ROWS=$((DIALOG_HEIGHT - 8))
 	((AVAILABLE_ROWS < 5)) && AVAILABLE_ROWS=5
 
 	NUM_VMS=$((${#MENU_ITEMS[@]} / 3))
 	((AVAILABLE_ROWS > NUM_VMS)) && AVAILABLE_ROWS=$NUM_VMS
+}
 
-	#==============================================================
-	# VM Selection Menu
-	#==============================================================
-	SELECTED_VMS=$(dialog --colors --clear \
-		--title " Proxmox Bulk VM Manager " \
-		--checklist "Select VMs to operate on:" \
-		"$DIALOG_HEIGHT" "$DIALOG_WIDTH" "$AVAILABLE_ROWS" \
-		"${MENU_ITEMS[@]}" \
-		3>&1 1>&2 2>&3)
+execute_operation() {
+	local vmid="$1"
+	local operation="$2"
 
-	status=$?
-	clear
+	local node
+	node=$(jq -r ".data[] | select(.vmid==$vmid) | .node" <<<"$VM_DATA")
 
-	if [[ $status -ne 0 ]]; then
-		echo "Dialog exit code: $status"
-		exit 1
+	local response
+	local curl_exit
+	local result=""
+
+	case "$operation" in
+	start)
+		response=$(curl -s -k -X POST -H "$AUTH_HEADER" \
+			"$API_URL/nodes/$node/qemu/$vmid/status/start")
+		curl_exit=$?
+		;;
+	shutdown)
+		response=$(curl -s -k -X POST -H "$AUTH_HEADER" \
+			"$API_URL/nodes/$node/qemu/$vmid/status/shutdown")
+		curl_exit=$?
+		;;
+	stop)
+		response=$(curl -s -k -X POST -H "$AUTH_HEADER" \
+			"$API_URL/nodes/$node/qemu/$vmid/status/stop")
+		curl_exit=$?
+		;;
+	restart)
+		response=$(curl -s -k -X POST -H "$AUTH_HEADER" \
+			"$API_URL/nodes/$node/qemu/$vmid/status/reset")
+		curl_exit=$?
+		;;
+	suspend)
+		response=$(curl -s -k -X POST -H "$AUTH_HEADER" \
+			"$API_URL/nodes/$node/qemu/$vmid/status/suspend")
+		curl_exit=$?
+		;;
+	hibernate)
+		response=$(curl -s -k -X POST -H "$AUTH_HEADER" \
+			"$API_URL/nodes/$node/qemu/$vmid/status/suspend" \
+			-d "skiplock=1&todisk=1")
+		curl_exit=$?
+		;;
+	delete)
+		response=$(curl -s -k -X DELETE -H "$AUTH_HEADER" \
+			"$API_URL/nodes/$node/qemu/$vmid?purge=1")
+		curl_exit=$?
+		;;
+	esac
+
+	if [[ $curl_exit -ne 0 ]]; then
+		result="FAILED (curl exit $curl_exit)"
+	else
+		local upid
+		upid=$(jq -r '.data // empty' <<<"$response" 2>/dev/null)
+		if [[ -n "$upid" && "$upid" == UPID:* ]]; then
+			local task_id
+			task_id=$(echo "$upid" | cut -d':' -f6)
+			result="OK (task: ${task_id:0:8}...)"
+		else
+			local api_message
+			api_message=$(jq -r '.message // .errors // empty' <<<"$response" 2>/dev/null)
+			if [[ -n "$api_message" ]]; then
+				result="FAILED ($api_message)"
+			elif [[ -z "$response" || "$response" == "null" ]]; then
+				result="OK"
+			else
+				result="OK"
+			fi
+		fi
 	fi
 
-	# Remove quotes
-	SELECTED_VMIDS=$(echo "$SELECTED_VMS" | tr -d '"')
+	echo "$vmid ($node): $result"
+}
 
-	if [[ -z "$SELECTED_VMIDS" ]]; then
-		dialog --msgbox "No VMs selected." 10 40
+run_ui() {
+
+	DIALOG_THEME="$THEME_DIR/.dialogrc"
+
+	if [[ -f "$DIALOG_THEME" ]]; then
+		export DIALOGRC="$DIALOG_THEME"
+	fi
+
+	check_dependencies
+	load_config
+
+	while true; do
+		fetch_vms
+		build_menu_items
+		get_dialog_size
+
+		SELECTED_VMS=$(dialog --colors --clear \
+			--title " Proxmox Bulk VM Manager " \
+			--checklist "Select VMs to operate on:" \
+			"$DIALOG_HEIGHT" "$DIALOG_WIDTH" "$AVAILABLE_ROWS" \
+			"${MENU_ITEMS[@]}" \
+			3>&1 1>&2 2>&3)
+
+		status=$?
 		clear
-		exit 0
-	fi
 
-	#==============================================================
-	# Operation Menu
-	#==============================================================
-	OPERATION=$(dialog --clear \
-		--menu "Choose an operation:" \
-		15 60 4 \
-		"shutdown" "Shutdown (ACPI)" \
-		"stop" "Hard stop" \
-		"suspend" "Suspend VM" \
-		"delete" "Delete VM (purge)" \
-		3>&1 1>&2 2>&3)
+		if [[ $status -ne 0 ]]; then
+			exit 0
+		fi
 
-	clear
+		SELECTED_VMIDS=$(echo "$SELECTED_VMS" | tr -d '"')
 
-	if [[ -z "$OPERATION" ]]; then
-		echo "No operation selected."
-		exit 0
-	fi
+		if [[ -z "$SELECTED_VMIDS" ]]; then
+			dialog --msgbox "No VMs selected." 10 40
+			clear
+			continue
+		fi
 
-	#==============================================================
-	# Execute selected operation
-	#==============================================================
-	log=""
+		OPERATION=$(dialog --clear \
+			--menu "Choose an operation:" \
+			17 60 7 \
+			"start" "Start VM" \
+			"shutdown" "Shutdown (ACPI)" \
+			"stop" "Hard stop" \
+			"restart" "Restart VM" \
+			"suspend" "Suspend to RAM" \
+			"hibernate" "Suspend to disk" \
+			"delete" "Delete VM (purge)" \
+			"quit" "Exit" \
+			3>&1 1>&2 2>&3)
 
-	for vmid in $SELECTED_VMIDS; do
-		vmid=$(tr -d '"' <<<"$vmid")
-		node=$(jq -r ".data[] | select(.vmid==$vmid) | .node" <<<"$VM_DATA")
+		clear
 
-		log+="VMID $vmid on node $node → "
+		if [[ -z "$OPERATION" || "$OPERATION" == "quit" ]]; then
+			exit 0
+		fi
 
-		case "$OPERATION" in
-		shutdown)
-			curl -s -k -X POST -H "$AUTH_HEADER" \
-				"$API_URL/nodes/$node/qemu/$vmid/status/shutdown" >/dev/null
-			log+="shutdown sent\n"
-			;;
-		stop)
-			curl -s -k -X POST -H "$AUTH_HEADER" \
-				"$API_URL/nodes/$node/qemu/$vmid/status/stop" >/dev/null
-			log+="stop sent\n"
-			;;
-		suspend)
-			curl -s -k -X POST -H "$AUTH_HEADER" \
-				"$API_URL/nodes/$node/qemu/$vmid/status/suspend" >/dev/null
-			log+="suspend sent\n"
-			;;
-		delete)
-			curl -s -k -X DELETE -H "$AUTH_HEADER" \
-				"$API_URL/nodes/$node/qemu/$vmid?purge=1" >/dev/null
-			log+="delete requested\n"
-			;;
-		esac
+		RESULTS="Command: $OPERATION\n\n"
+		RESULTS+="Tasks queued on Proxmox cluster.\n"
+		RESULTS+="Monitor progress in Proxmox web UI.\n\n"
+
+		for vmid in $SELECTED_VMIDS; do
+			vmid=$(tr -d '"' <<<"$vmid")
+			RESULTS+=$(execute_operation "$vmid" "$OPERATION")
+			RESULTS+="\n"
+		done
+
+		dialog --msgbox "$RESULTS" 22 65
+		clear
 	done
-
-	#==============================================================
-	# Results dialog
-	#==============================================================
-	dialog --msgbox "$log" 25 90
-	clear
-	exit 0
-
 }

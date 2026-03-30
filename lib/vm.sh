@@ -23,6 +23,12 @@ vm_action() {
 
 		case "$action" in
 
+		start)
+			api_call POST \
+				"$API_URL/nodes/$node/qemu/$vmid/status/start"
+			api_result=$?
+			;;
+
 		shutdown)
 			api_call POST \
 				"$API_URL/nodes/$node/qemu/$vmid/status/shutdown"
@@ -35,9 +41,23 @@ vm_action() {
 			api_result=$?
 			;;
 
+		restart)
+			api_call POST \
+				"$API_URL/nodes/$node/qemu/$vmid/status/reset"
+			api_result=$?
+			;;
+
 		suspend)
 			api_call POST \
 				"$API_URL/nodes/$node/qemu/$vmid/status/suspend"
+			api_result=$?
+			;;
+
+		hibernate)
+			api_call POST \
+				"$API_URL/nodes/$node/qemu/$vmid/status/suspend" \
+				-H "Content-Type: application/x-www-form-urlencoded" \
+				-d "skiplock=1&todisk=1"
 			api_result=$?
 			;;
 
@@ -70,9 +90,21 @@ vm_action() {
 
 list_vms() {
 
-	jq -r '
-.data[]
-| "\(.vmid)\t\(.node)\t\(.status)\t\(.name)"
-' <<<"$VM_DATA"
+	local sort_key="${LIST_SORT:-}"
+
+	if [[ -n "$sort_key" ]]; then
+		VM_DATA=$(jq --arg sort_key "$sort_key" '
+			(.data // .) as $arr
+			| {data: ($arr | sort_by(
+				if $sort_key == "id" then .vmid | tonumber
+				elif $sort_key == "node" then .node // ""
+				elif $sort_key == "status" then .status // ""
+				elif $sort_key == "name" then .name // ""
+				else .vmid | tonumber end
+			))}
+		' <<<"$VM_DATA")
+	fi
+
+	jq -r '(.data // .)[] | "\(.vmid)\t\(.node)\t\(.status // "unknown")\t\(.name // "(noname)")"' <<<"$VM_DATA"
 
 }

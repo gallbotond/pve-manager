@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DRY_RUN=false
+: "${DRY_RUN:=false}"
 
 api_call() {
 
@@ -39,6 +39,11 @@ fetch_vms() {
 
 	if [[ -n "${PVE_MANAGER_TEST_DATA:-}" ]]; then
 		VM_DATA="$(cat "$PVE_MANAGER_TEST_DATA")"
+		return
+	fi
+
+	if [[ "$DRY_RUN" == true ]]; then
+		VM_DATA='{"data":[]}'
 		return
 	fi
 
