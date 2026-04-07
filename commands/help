@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+echo "Available commands:"
+echo
+
+ls "$(dirname "$0")"

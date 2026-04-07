@@ -6,17 +6,23 @@ mkdir -p "$(dirname "$LOG_FILE")"
 VERBOSE=false
 
 log() {
-	echo "[INFO] $*" | tee -a "$LOG_FILE"
+	echo "[INF] $*" | tee -a "$LOG_FILE"
 }
 
 warn() {
-	echo "[WARN] $*" | tee -a "$LOG_FILE" >&2
+	echo "[WAR] $*" | tee -a "$LOG_FILE" >&2
 }
 
 error() {
-	echo "[ERROR] $*" | tee -a "$LOG_FILE" >&2
+	echo "[ERR] $*" | tee -a "$LOG_FILE" >&2
 }
 
 debug() {
 	[[ "$VERBOSE" == true ]] && echo "[DEBUG] $*" | tee -a "$LOG_FILE"
+}
+
+custom_log() {
+	local level="$1"
+	shift
+	echo "[$level] $*" | tee -a "$LOG_FILE"
 }

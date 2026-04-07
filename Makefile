@@ -7,7 +7,7 @@ lint-ci:
 	shellcheck -S error -x bin/*.sh lib/*.sh
 
 test:
-	bash -n bin/main.sh
+	bash -n bin/pm.sh
 	bash -n lib/*.sh
 	bats tests
 

@@ -3,7 +3,7 @@
     {
       "vmid": 101,
       "name": "web01",
-      "status": "running",
+      "status": "stopped",
       "node": "node1",
       "tags": "prod"
     },
