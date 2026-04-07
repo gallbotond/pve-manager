@@ -112,7 +112,9 @@ get_dialog_size() {
 	((AVAILABLE_ROWS < 5)) && AVAILABLE_ROWS=5
 
 	NUM_VMS=$((${#MENU_ITEMS[@]} / 3))
-	((AVAILABLE_ROWS > NUM_VMS)) && AVAILABLE_ROWS=$NUM_VMS
+	if ((AVAILABLE_ROWS > NUM_VMS)); then
+		AVAILABLE_ROWS=$NUM_VMS
+	fi
 }
 
 execute_operation() {

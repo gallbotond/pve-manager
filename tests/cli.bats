@@ -44,3 +44,14 @@ setup() {
   run commands/nonsense
   [ "$status" -ne 0 ]
 }
+
+@test "get_dialog_size does not exit when VMs exceed rows" {
+  run env TERM=xterm bash -lc '
+    set -euo pipefail
+    source lib/ui.sh
+    MENU_ITEMS=(101 vm off 102 vm off 103 vm off 104 vm off 105 vm off 106 vm off)
+    get_dialog_size
+    printf "%s\n" "$AVAILABLE_ROWS"
+  '
+  [ "$status" -eq 0 ]
+}
